@@ -5,12 +5,15 @@ import {
   CircularProgress,
   Typography,
   Paper,
+  TextField,
   Stack,
 } from '@mui/material';
 import { red, green } from '@mui/material/colors';
 import { Mic, Stop } from '@mui/icons-material';
 
 const App: React.FC = () => {
+
+  const domain = "https://efcb-118-69-52-70.ngrok-free.app/api" 
   const [response, setResponse] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -43,10 +46,13 @@ const App: React.FC = () => {
   const [titleText, setTitleText] = useState('');
   const titleTextRef = useRef("");
 
+  const [userInput, setUserInput] = useState('');
+  const [audioUrl, setAudioUrl] = useState('');
+
   const startRecording = async () => {
     setResponse(null);
     setLoading(false);
-    const randomPrompt = prompts[Math.floor(Math.random() * prompts.length)];
+    const randomPrompt = userInput.trim() || prompts[Math.floor(Math.random() * prompts.length)];
     setTitleText(randomPrompt);
     titleTextRef.current = randomPrompt;
 
@@ -80,6 +86,10 @@ const App: React.FC = () => {
 
   const handleRecordingStop = async () => {
     const blob = new Blob(audioChunks.current, { type: 'audio/webm' });
+
+    const url = URL.createObjectURL(blob);
+    setAudioUrl(url);
+
     const arrayBuffer = await blob.arrayBuffer();
     const audioContext = new AudioContext();
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
@@ -96,7 +106,7 @@ const App: React.FC = () => {
 
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:8080/GetAccuracyFromRecordedAudio', {
+      const res = await fetch(domain + '/GetAccuracyFromRecordedAudio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -160,22 +170,56 @@ const App: React.FC = () => {
     return btoa(binary);
   };
 
+  // const renderColoredTranscript = () => {
+  //   const text = response.data.real_transcripts;
+  //   const correctness = response.data.is_letter_correct_all_words.replace(/\s/g, '');
+  //   return (
+  //     <Typography sx={{ wordBreak: 'break-word', fontSize: '1.2rem' }}>
+  //       {text.split('').map((char: string, i: number) => (
+  //         <span
+  //           key={i}
+  //           style={{
+  //             color: correctness[i] === '1' ? green[600] : red[600],
+  //             fontWeight: 'bold',
+  //           }}
+  //         >
+  //           {char}
+  //         </span>
+  //       ))}
+  //     </Typography>
+  //   );
+  // };
   const renderColoredTranscript = () => {
-    const text = response.data.real_transcripts;
-    const correctness = response.data.is_letter_correct_all_words.replace(/\s/g, '');
+    const text = response.data.real_transcripts; // e.g., "I want to swim"
+    const correctnessRaw = response.data.is_letter_correct_all_words; // e.g., "1 1011 11 101 "
+  
+    // Remove spaces from correctness string to get pure flags
+    const correctness = correctnessRaw.replace(/\s/g, '');
+  
+    let correctnessIndex = 0;
+  
     return (
       <Typography sx={{ wordBreak: 'break-word', fontSize: '1.2rem' }}>
-        {text.split('').map((char: string, i: number) => (
-          <span
-            key={i}
-            style={{
-              color: correctness[i] === '1' ? green[600] : red[600],
-              fontWeight: 'bold',
-            }}
-          >
-            {char}
-          </span>
-        ))}
+        {text.split('').map((char: string, i: number) => {
+          if (char === ' ') {
+            return <span key={i} style={{ marginRight: '4px' }}> </span>; // Preserve spaces
+          }
+  
+          const isCorrect = correctness[correctnessIndex] === '1';
+          correctnessIndex++;
+  
+          return (
+            <span
+              key={i}
+              style={{
+                color: isCorrect ? green[600] : red[600],
+                fontWeight: 'bold',
+              }}
+            >
+              {char}
+            </span>
+          );
+        })}
       </Typography>
     );
   };
@@ -192,6 +236,15 @@ const App: React.FC = () => {
         <Typography variant="h5" gutterBottom>
           Pronunciation Analyzer
         </Typography>
+
+        <TextField
+          label="Enter custom phrase (optional)"
+          variant="outlined"
+          fullWidth
+          sx={{ mt: 3 }}
+          value={userInput}
+          onChange={(e) => setUserInput(e.target.value)}
+        />
 
         <Box mt={3} mb={3}>
           {titleText && (
@@ -247,6 +300,12 @@ const App: React.FC = () => {
                 {renderColoredTranscript()}
               </Paper>
             </Box>
+          </Box>
+        )}
+
+        {audioUrl && (
+          <Box mt={2}>
+            <audio controls src={audioUrl} />
           </Box>
         )}
       </Paper>
