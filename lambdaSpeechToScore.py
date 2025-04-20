@@ -50,6 +50,13 @@ def lambda_handler(event, context):
         tmp.flush()
         tmp_name = tmp.name
         signal, sr = torchaudio.load(tmp_name)
+
+        # Add silence
+        num_channels, num_samples = signal.shape
+        num_silent_samples = int(sr * 3)  # 3 seconds of silence
+        silence = torch.zeros((num_channels, num_silent_samples))
+        signal = torch.cat((signal, silence), dim=1)
+        
         if sr != 16000:
             resampler = T.Resample(orig_freq=sr, new_freq=16000)
             signal = resampler(signal)
